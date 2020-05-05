@@ -71,8 +71,20 @@ func EncodeRowKeyWithHandle(tableID int64, handle int64) kv.Key {
 
 // DecodeRecordKey decodes the key and gets the tableID, handle.
 func DecodeRecordKey(key kv.Key) (tableID int64, handle int64, err error) {
-	/* Your code here */
-	return
+	if !IsRecordKey(key) {
+		return 0, 0, errors.New("invalid encoded record key prefix")
+	}
+	ik := key[tablePrefixLength:]
+	ik, tableID, err = codec.DecodeInt(ik)
+	if err != nil {
+		return 0, 0, errors.Trace(err)
+	}
+	ik = key[prefixLen:]
+	_, handle, err = codec.DecodeInt(ik)
+	if err != nil {
+		return 0, 0, errors.Trace(err)
+	}
+	return tableID, handle, nil
 }
 
 // appendTableIndexPrefix appends table index prefix  "t[tableID]_i".
@@ -94,7 +106,19 @@ func EncodeIndexSeekKey(tableID int64, idxID int64, encodedValue []byte) kv.Key 
 
 // DecodeIndexKeyPrefix decodes the key and gets the tableID, indexID, indexValues.
 func DecodeIndexKeyPrefix(key kv.Key) (tableID int64, indexID int64, indexValues []byte, err error) {
-	/* Your code here */
+	if !IsIndexKey(key) {
+		return 0, 0, nil, errors.New("invalid encoded index key prefix")
+	}
+	ik := key[tablePrefixLength:]
+	ik, tableID, err = codec.DecodeInt(ik)
+	if err != nil {
+		return 0, 0, nil, errors.Trace(err)
+	}
+	ik = key[prefixLen:]
+	indexValues, indexID, err = codec.DecodeInt(ik)
+	if err != nil {
+		return 0, 0, nil, errors.Trace(err)
+	}
 	return tableID, indexID, indexValues, nil
 }
 
@@ -503,6 +527,11 @@ func GenTableIndexPrefix(tableID int64) kv.Key {
 // IsIndexKey is used to check whether the key is an index key.
 func IsIndexKey(k []byte) bool {
 	return len(k) > 11 && k[0] == 't' && k[10] == 'i'
+}
+
+// IsRecordKey is used to check whether the key is an record key.
+func IsRecordKey(k []byte) bool {
+	return len(k) > 11 && k[0] == 't' && k[10] == 'r'
 }
 
 // IsUntouchedIndexKValue uses to check whether the key is index key, and the value is untouched,
