@@ -798,5 +798,55 @@ func (r *MergeAggregationProjection) Match(old *memo.ExprIter) bool {
 // It will transform `Aggregation->Projection->X` to `Aggregation->X`.
 func (r *MergeAggregationProjection) OnTransform(old *memo.ExprIter) (newExprs []*memo.GroupExpr, eraseOld bool, eraseAll bool, err error) {
 	// TODO: implement the body according to the header comment.
-	return []*memo.GroupExpr{old.GetExpr()}, false, false, nil
+	agg := old.GetExpr().ExprNode.(*plannercore.LogicalAggregation)
+	proj := old.Children[0].GetExpr().ExprNode.(*plannercore.LogicalProjection)
+	projSchema := old.Children[0].Group.Prop.Schema
+	childGroup := old.Children[0].GetExpr().Children[0]
+
+	replace := make(map[string]expression.Expression)
+	for i, col := range projSchema.Columns {
+		switch origin := proj.Exprs[i].(type) {
+		case *expression.Column:
+			replace[string(col.HashCode(nil))] = origin
+		case *expression.ScalarFunction:
+			replace[string(col.HashCode(nil))] = origin
+		}
+	}
+
+	newGroupByItems := make([]expression.Expression, 0, len(agg.GroupByItems))
+	newAggFuncs := make([]*aggregation.AggFuncDesc, 0, len(agg.AggFuncs))
+	for _, groupByCol := range agg.GetGroupByCols() {
+		var newGroupByExpr expression.Expression
+		if col, ok := replace[string(groupByCol.HashCode(nil))]; ok {
+			newGroupByExpr = col.Clone()
+		} else {
+			newGroupByExpr = groupByCol.Clone()
+		}
+		newGroupByItems = append(newGroupByItems, newGroupByExpr)
+	}
+	for _, aggFunc := range agg.AggFuncs {
+		newAggFunc := &aggregation.AggFuncDesc{Mode: aggFunc.Mode}
+		newAggFunc.Name = aggFunc.Name
+		newAggFunc.RetTp = aggFunc.RetTp
+		newArgs := make([]expression.Expression, 0, len(aggFunc.Args))
+		for _, expr := range aggFunc.Args {
+			var newArg expression.Expression
+			if col, ok := replace[string(expr.HashCode(nil))]; ok {
+				newArg = col.Clone()
+			} else {
+				newArg = expr.Clone()
+			}
+			newArgs = append(newArgs, newArg)
+		}
+		newAggFunc.Args = newArgs
+		newAggFuncs = append(newAggFuncs, newAggFunc)
+	}
+
+	newAgg := plannercore.LogicalAggregation{
+		AggFuncs:     newAggFuncs,
+		GroupByItems: newGroupByItems,
+	}.Init(agg.SCtx())
+	newAggExpr := memo.NewGroupExpr(newAgg)
+	newAggExpr.SetChildren(childGroup)
+	return []*memo.GroupExpr{newAggExpr}, true, false, nil
 }
