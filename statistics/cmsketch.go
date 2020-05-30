@@ -14,6 +14,7 @@
 package statistics
 
 import (
+	"math"
 	"reflect"
 
 	"github.com/pingcap/errors"
@@ -50,6 +51,12 @@ func (c *CMSketch) InsertBytes(bytes []byte) {
 // insertBytesByCount adds the bytes value into the TopN (if value already in TopN) or CM Sketch by delta, this does not updates c.defaultValue.
 func (c *CMSketch) insertBytesByCount(bytes []byte, count uint64) {
 	// TODO: implement the insert method.
+	h1, h2 := murmur3.Sum128(bytes)
+	for row := uint64(0); row < uint64(c.depth); row++ {
+		col := (h1*row + h2) % uint64(c.width)
+		c.table[row][col] += 1
+	}
+	c.count += count
 }
 
 func (c *CMSketch) queryValue(sc *stmtctx.StatementContext, val types.Datum) (uint64, error) {
@@ -68,7 +75,14 @@ func (c *CMSketch) QueryBytes(d []byte) uint64 {
 
 func (c *CMSketch) queryHashValue(h1, h2 uint64) uint64 {
 	// TODO: implement the query method.
-	return uint64(0)
+	countMin := uint32(math.MaxUint32)
+	for row := uint64(0); row < uint64(c.depth); row++ {
+		col := (h1*row + h2) % uint64(c.width)
+		if countMin > c.table[row][col] {
+			countMin = c.table[row][col]
+		}
+	}
+	return uint64(countMin)
 }
 
 // MergeCMSketch merges two CM Sketch.
