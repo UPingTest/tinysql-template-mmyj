@@ -14,8 +14,10 @@
 package statistics
 
 import (
+	"github.com/cznic/sortutil"
 	"math"
 	"reflect"
+	"sort"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
@@ -75,14 +77,26 @@ func (c *CMSketch) QueryBytes(d []byte) uint64 {
 
 func (c *CMSketch) queryHashValue(h1, h2 uint64) uint64 {
 	// TODO: implement the query method.
-	countMin := uint32(math.MaxUint32)
-	for row := uint64(0); row < uint64(c.depth); row++ {
-		col := (h1*row + h2) % uint64(c.width)
-		if countMin > c.table[row][col] {
-			countMin = c.table[row][col]
+	vals := make([]uint32, c.depth)
+	min := uint32(math.MaxUint32)
+	for i := range c.table {
+		j := (h1*uint64(i) + h2) % uint64(c.width)
+		if min > c.table[i][j] {
+			min = c.table[i][j]
+		}
+		noise := (c.count - uint64(c.table[i][j])) / (uint64(c.width) - 1)
+		if uint64(c.table[i][j]) < noise {
+			vals[i] = 0
+		} else {
+			vals[i] = c.table[i][j] - uint32(noise)
 		}
 	}
-	return uint64(countMin)
+	sort.Sort(sortutil.Uint32Slice(vals))
+	res := vals[(c.depth-1)/2] + (vals[c.depth/2]-vals[(c.depth-1)/2])/2
+	if res > min {
+		return uint64(min)
+	}
+	return uint64(res)
 }
 
 // MergeCMSketch merges two CM Sketch.
