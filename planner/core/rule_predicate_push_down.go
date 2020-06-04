@@ -14,7 +14,6 @@ package core
 
 import (
 	"context"
-
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/parser/ast"
 	"github.com/pingcap/tidb/parser/mysql"
@@ -356,7 +355,19 @@ func (la *LogicalAggregation) PredicatePushDown(predicates []expression.Expressi
 	// TODO: Here you need to push the predicates across the aggregation.
 	//       A simple example is that `select * from (select count(*) from t group by b) tmp_t where b > 1` is the same with
 	//       `select * from (select count(*) from t where b > 1 group by b) tmp_t.
-	return predicates, la
+	aggExprs := expression.Column2Exprs(la.GetGroupByCols())
+	// filter the predicates can be pushed
+	// note that we can not push the predicate expression which is dependent on the aggFunc in the subquery.
+	// canBePushed: `select * from (select count(*) from t group by b) tmp_t where b > 1` -> `select * from (select count(*) from t where b > 1 group by b) tmp_t`
+	// canNotBePushed: `select * from (select count(a) count_a from t group by b) tmp_t where count_a > 1`
+	canBePushed, canNotBePushed := expression.FilterOutInPlace(predicates, func(e expression.Expression) bool {
+		if expression.Contains(aggExprs, e) {
+			return false
+		}
+		return true
+	})
+	remained, child := la.baseLogicalPlan.PredicatePushDown(canBePushed)
+	return append(canNotBePushed, remained...), child
 }
 
 // PredicatePushDown implements LogicalPlan PredicatePushDown interface.
