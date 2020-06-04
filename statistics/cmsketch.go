@@ -14,7 +14,6 @@
 package statistics
 
 import (
-	"github.com/cznic/sortutil"
 	"math"
 	"reflect"
 	"sort"
@@ -25,6 +24,7 @@ import (
 	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tipb/go-tipb"
 	"github.com/spaolacci/murmur3"
+	"github.com/cznic/sortutil"
 )
 
 // CMSketch is used to estimate point queries.
@@ -56,7 +56,7 @@ func (c *CMSketch) insertBytesByCount(bytes []byte, count uint64) {
 	h1, h2 := murmur3.Sum128(bytes)
 	for row := uint64(0); row < uint64(c.depth); row++ {
 		col := (h1*row + h2) % uint64(c.width)
-		c.table[row][col] += 1
+		c.table[row][col] ++
 	}
 	c.count += count
 }
