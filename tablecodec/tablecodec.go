@@ -75,7 +75,7 @@ func DecodeRecordKey(key kv.Key) (tableID int64, handle int64, err error) {
 		return 0, 0, errors.New("invalid encoded record key prefix")
 	}
 	ik := key[tablePrefixLength:]
-	ik, tableID, err = codec.DecodeInt(ik)
+	_, tableID, err = codec.DecodeInt(ik)
 	if err != nil {
 		return 0, 0, errors.Trace(err)
 	}
@@ -110,7 +110,7 @@ func DecodeIndexKeyPrefix(key kv.Key) (tableID int64, indexID int64, indexValues
 		return 0, 0, nil, errors.New("invalid encoded index key prefix")
 	}
 	ik := key[tablePrefixLength:]
-	ik, tableID, err = codec.DecodeInt(ik)
+	_, tableID, err = codec.DecodeInt(ik)
 	if err != nil {
 		return 0, 0, nil, errors.Trace(err)
 	}
