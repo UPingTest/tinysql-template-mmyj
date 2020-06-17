@@ -69,6 +69,7 @@ func (s *joinReorderGreedySolver) solve(joinNodePlans []LogicalPlan) (LogicalPla
 	return s.makeBushyJoin(cartesianGroup), nil
 }
 
+// constructConnectedJoinTree 循环找最小代码的join计划
 func (s *joinReorderGreedySolver) constructConnectedJoinTree() (*jrNode, error) {
 	curJoinTree := s.curJoinGroup[0]
 	s.curJoinGroup = s.curJoinGroup[1:]
@@ -79,7 +80,7 @@ func (s *joinReorderGreedySolver) constructConnectedJoinTree() (*jrNode, error) 
 		var bestJoin LogicalPlan
 		// 遍历curJoinGroup，和curJoinTree进行join，找一个代价最小的plan
 		for i, node := range s.curJoinGroup {
-			// 尝试join得到新的计划
+			// 尝试 curJoinTree join node 得到新的计划
 			newJoin, remainOthers := s.checkConnectionAndMakeJoin(curJoinTree.p, node.p)
 			if newJoin == nil {
 				continue
@@ -101,6 +102,7 @@ func (s *joinReorderGreedySolver) constructConnectedJoinTree() (*jrNode, error) 
 		if bestJoin == nil {
 			break
 		}
+		// 留下当前轮次代价最小的计划，继续外层循环，在剩下的节点里面继续找一个代价最少的计划
 		curJoinTree = &jrNode{
 			p:       bestJoin,
 			cumCost: bestCost,
@@ -108,6 +110,7 @@ func (s *joinReorderGreedySolver) constructConnectedJoinTree() (*jrNode, error) 
 		s.curJoinGroup = append(s.curJoinGroup[:bestIdx], s.curJoinGroup[bestIdx+1:]...)
 		s.otherConds = finalRemainOthers
 	}
+	// 最后得到的应该是一个最小代价的join树
 	return curJoinTree, nil
 }
 
