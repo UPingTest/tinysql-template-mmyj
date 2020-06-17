@@ -20,7 +20,7 @@
 
 - 使用数字的二进制表示来代表当前参与 Join 的节点情况。11（二进制表示为 1011）表示当前的 Join Group 包含了第 3 号节点，第 1 号节点和第 0 号节点（节点从 0 开始计数）。
 - f[11] 来表示包含了节点 `3, 1, 0` 的最优的 Join Tree。
-- 转移方程则是 `f[group] = min{join{f[sub], f[group ^ sub])}` 这里 `sub` 是 `group` 二进制表示下的任意子集。
+- 转移方程则是 `f[group] = min{join(f[sub], f[group ^ sub])}` 这里 `sub` 是 `group` 二进制表示下的任意子集。
 
 
 ## Access Path Selection

@@ -63,6 +63,9 @@ func (s *joinReOrderSolver) optimizeRecursive(ctx sessionctx.Context, p LogicalP
 	var err error
 	curJoinGroup, eqEdges, otherConds := extractJoinGroup(p)
 	if len(curJoinGroup) > 1 {
+		/*
+			笔记 先rewrite优化再reorder优化
+		*/
 		for i := range curJoinGroup {
 			curJoinGroup[i], err = s.optimizeRecursive(ctx, curJoinGroup[i])
 			if err != nil {
@@ -73,6 +76,10 @@ func (s *joinReOrderSolver) optimizeRecursive(ctx sessionctx.Context, p LogicalP
 			ctx:        ctx,
 			otherConds: otherConds,
 		}
+		/*
+			笔记 TiDBOptJoinReorderThreshold会影响优化的方式
+			数量小于TiDBOptJoinReorderThreshold的查询才可以走dp分支
+		*/
 		if len(curJoinGroup) > ctx.GetSessionVars().TiDBOptJoinReorderThreshold {
 			groupSolver := &joinReorderGreedySolver{
 				baseSingleGroupJoinOrderSolver: baseGroupSolver,
@@ -123,12 +130,14 @@ func (s *baseSingleGroupJoinOrderSolver) makeBushyJoin(cartesianJoinGroup []Logi
 	resultJoinGroup := make([]LogicalPlan, 0, (len(cartesianJoinGroup)+1)/2)
 	for len(cartesianJoinGroup) > 1 {
 		resultJoinGroup = resultJoinGroup[:0]
-		for i := 0; i < len(cartesianJoinGroup); i += 2 {
-			if i+1 == len(cartesianJoinGroup) {
+		for i := 0; i < len(cartesianJoinGroup); i += 2 { // 每两个为一组
+			if i+1 == len(cartesianJoinGroup) { // 最后单个的直接返回
 				resultJoinGroup = append(resultJoinGroup, cartesianJoinGroup[i])
 				break
 			}
-			newJoin := s.newCartesianJoin(cartesianJoinGroup[i], cartesianJoinGroup[i+1])
+			newJoin := s.newCartesianJoin(cartesianJoinGroup[i], cartesianJoinGroup[i+1]) // 两个求笛卡尔积
+			// 从后面开始？
+			// 把otherConds加到newJoin里面
 			for i := len(s.otherConds) - 1; i >= 0; i-- {
 				cols := expression.ExtractColumns(s.otherConds[i])
 				if newJoin.schema.ColumnsIndices(cols) != nil {

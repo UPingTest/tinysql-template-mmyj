@@ -41,16 +41,18 @@ type joinReorderGreedySolver struct {
 // For the nodes and join trees which don't have a join equal condition to
 // connect them, we make a bushy join tree to do the cartesian joins finally.
 func (s *joinReorderGreedySolver) solve(joinNodePlans []LogicalPlan) (LogicalPlan, error) {
+	// 遍历全部节点，递归计算cost
 	for _, node := range joinNodePlans {
 		_, err := node.recursiveDeriveStats()
 		if err != nil {
 			return nil, err
 		}
-		s.curJoinGroup = append(s.curJoinGroup, &jrNode{
+		s.curJoinGroup = append(s.curJoinGroup, &jrNode{ // jrNode=节点+代价
 			p:       node,
 			cumCost: s.baseNodeCumCost(node),
 		})
 	}
+	// jrNode就是为了这里的排序
 	sort.SliceStable(s.curJoinGroup, func(i, j int) bool {
 		return s.curJoinGroup[i].cumCost < s.curJoinGroup[j].cumCost
 	})
@@ -75,11 +77,14 @@ func (s *joinReorderGreedySolver) constructConnectedJoinTree() (*jrNode, error) 
 		bestIdx := -1
 		var finalRemainOthers []expression.Expression
 		var bestJoin LogicalPlan
+		// 遍历curJoinGroup，和curJoinTree进行join，找一个代价最小的plan
 		for i, node := range s.curJoinGroup {
+			// 尝试join得到新的计划
 			newJoin, remainOthers := s.checkConnectionAndMakeJoin(curJoinTree.p, node.p)
 			if newJoin == nil {
 				continue
 			}
+			// 计算新的计划的代价
 			_, err := newJoin.recursiveDeriveStats()
 			if err != nil {
 				return nil, err
@@ -110,6 +115,7 @@ func (s *joinReorderGreedySolver) checkConnectionAndMakeJoin(leftNode, rightNode
 	var usedEdges []*expression.ScalarFunction
 	remainOtherConds := make([]expression.Expression, len(s.otherConds))
 	copy(remainOtherConds, s.otherConds)
+	// 这里应该就是checkConnection的逻辑
 	for _, edge := range s.eqEdges {
 		lCol := edge.GetArgs()[0].(*expression.Column)
 		rCol := edge.GetArgs()[1].(*expression.Column)
@@ -125,8 +131,10 @@ func (s *joinReorderGreedySolver) checkConnectionAndMakeJoin(leftNode, rightNode
 	}
 	var otherConds []expression.Expression
 	mergedSchema := expression.MergeSchema(leftNode.Schema(), rightNode.Schema())
+	// remainOtherConds是不匹配过滤规则的，otherConds是匹配的
+	// 在这里就意味着，otherConds表示ExprFromSchema为true的表达式
 	remainOtherConds, otherConds = expression.FilterOutInPlace(remainOtherConds, func(expr expression.Expression) bool {
-		return expression.ExprFromSchema(expr, mergedSchema)
+		return expression.ExprFromSchema(expr, mergedSchema) // 全部expr属于mergedSchema，返回true
 	})
 	return s.newJoinWithEdges(leftNode, rightNode, usedEdges, otherConds), remainOtherConds
 }
