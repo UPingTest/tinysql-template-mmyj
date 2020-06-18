@@ -155,6 +155,7 @@ func (s *testJoinReorderDPSuite) newDataSource(name string, count int) LogicalPl
 		UniqueID: s.ctx.GetSessionVars().PlanColumnID,
 		RetType:  types.NewFieldType(mysql.TypeLonglong),
 	})
+	// 统计信息就直接写到计划里面的
 	ds.stats = &property.StatsInfo{
 		RowCount: float64(count),
 	}
