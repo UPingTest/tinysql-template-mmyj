@@ -44,9 +44,17 @@ func (s *joinReorderDPSolver) solve(joinGroup []LogicalPlan, eqConds []expressio
 	// You'll see some common usages in the greedy version.
 
 	// Note that the join tree may be disconnected. i.e. You need to consider the case `select * from t, t1, t2`.
+
+	// 第一步 dp的初始化
+	// 第二步 补全dp数组
+	// 第三步 取结果
+
 	return nil, errors.Errorf("unimplemented")
 }
 
+// newJoinWithEdge 用左右2个节点生成一个新的join计划
+// edges目前还不懂确切的作用，看起来是join的条件表达式+节点编号
+// 这一步对应的应该是readme上面的join(f[sub], f[group ^ sub])操作
 func (s *joinReorderDPSolver) newJoinWithEdge(leftPlan, rightPlan LogicalPlan, edges []joinGroupEqEdge, otherConds []expression.Expression) (LogicalPlan, error) {
 	var eqConds []*expression.ScalarFunction
 	for _, edge := range edges {
@@ -88,6 +96,7 @@ func (s *joinReorderDPSolver) makeBushyJoin(cartesianJoinGroup []LogicalPlan, ot
 	return cartesianJoinGroup[0]
 }
 
+// findNodeIndexInGroup 返回col在group的位置
 func findNodeIndexInGroup(group []LogicalPlan, col *expression.Column) (int, error) {
 	for i, plan := range group {
 		if plan.Schema().Contains(col) {
