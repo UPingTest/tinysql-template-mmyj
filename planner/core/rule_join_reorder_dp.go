@@ -21,17 +21,16 @@ import (
 
 type joinReorderDPSolver struct {
 	*baseSingleGroupJoinOrderSolver
-	newJoin             func(lChild, rChild LogicalPlan, eqConds []*expression.ScalarFunction, otherConds []expression.Expression) LogicalPlan
-	joinGroupNonEqEdges []joinGroupNonEqEdge // dp的结果
+	newJoin func(lChild, rChild LogicalPlan, eqConds []*expression.ScalarFunction, otherConds []expression.Expression) LogicalPlan
 }
 
-// 这里就是处理带有on条件的情况的
+// joinGroupEqEdge 等于条件
 type joinGroupEqEdge struct {
 	nodeIDs []int
 	edge    *expression.ScalarFunction
 }
 
-// 这里就是处理`select * from t, t1, t2`这种情况的
+// joinGroupNonEqEdge 不等于条件
 type joinGroupNonEqEdge struct {
 	nodeIDs    []int
 	nodeIDMask uint
@@ -48,12 +47,10 @@ func (s *joinReorderDPSolver) solve(joinGroup []LogicalPlan, eqConds []expressio
 
 	// Note that the join tree may be disconnected. i.e. You need to consider the case `select * from t, t1, t2`.
 
-	// 第一步 dp的初始化
-	for i, jg := range joinGroup {
+	if len(joinGroup) == 1 {
+		// 单个节点，对应的是f[0x001]这种情况
 
 	}
-	// 第二步 补全dp数组
-	// 第三步 取结果
 
 	return nil, errors.Errorf("unimplemented")
 }
@@ -69,7 +66,6 @@ func (s *joinReorderDPSolver) solve(joinGroup []LogicalPlan, eqConds []expressio
 // f[0x101] = join(a, c)
 // f[0x110] = join(b, c)
 // f[0x111] = min{join(f[0x001], f[0x110]),join(f[0x010], f[0x101]),join(f[0x100], f[0x011])}
-// 那可以推测edges应该是join的条件，otherConds是where条件
 func (s *joinReorderDPSolver) newJoinWithEdge(leftPlan, rightPlan LogicalPlan, edges []joinGroupEqEdge, otherConds []expression.Expression) (LogicalPlan, error) {
 	var eqConds []*expression.ScalarFunction
 	for _, edge := range edges {

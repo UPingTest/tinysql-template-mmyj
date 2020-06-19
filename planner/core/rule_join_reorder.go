@@ -26,6 +26,9 @@ import (
 //
 // For example: "InnerJoin(InnerJoin(a, b), LeftJoin(c, d))"
 // results in a join group {a, b, LeftJoin(c, d)}.
+
+// extractJoinGroup 从执行计划里面分离出join和条件
+// group就是join节点了，eqEdges是等于表达式，otherConds应该是不等于之类的
 func extractJoinGroup(p LogicalPlan) (group []LogicalPlan, eqEdges []*expression.ScalarFunction, otherConds []expression.Expression) {
 	join, isJoin := p.(*LogicalJoin)
 	if !isJoin || join.preferJoinType > uint(0) || join.JoinType != InnerJoin || join.StraightJoin {
@@ -61,11 +64,10 @@ func (s *joinReOrderSolver) optimize(ctx context.Context, p LogicalPlan) (Logica
 // optimizeRecursive recursively collects join groups and applies join reorder algorithm for each group.
 func (s *joinReOrderSolver) optimizeRecursive(ctx sessionctx.Context, p LogicalPlan) (LogicalPlan, error) {
 	var err error
+	// 其实我觉得这一行是最关键的，分离了join和join的条件
 	curJoinGroup, eqEdges, otherConds := extractJoinGroup(p)
 	if len(curJoinGroup) > 1 {
-		/*
-			笔记 先rewrite优化再reorder优化
-		*/
+		// 先rewrite优化再reorder优化
 		for i := range curJoinGroup {
 			curJoinGroup[i], err = s.optimizeRecursive(ctx, curJoinGroup[i])
 			if err != nil {
@@ -76,10 +78,8 @@ func (s *joinReOrderSolver) optimizeRecursive(ctx sessionctx.Context, p LogicalP
 			ctx:        ctx,
 			otherConds: otherConds,
 		}
-		/*
-			笔记 TiDBOptJoinReorderThreshold会影响优化的方式
-			数量小于TiDBOptJoinReorderThreshold的查询才可以走dp分支
-		*/
+		// TiDBOptJoinReorderThreshold会影响优化的方式
+		// 数量小于TiDBOptJoinReorderThreshold的查询才可以走dp分支
 		if len(curJoinGroup) > ctx.GetSessionVars().TiDBOptJoinReorderThreshold {
 			groupSolver := &joinReorderGreedySolver{
 				baseSingleGroupJoinOrderSolver: baseGroupSolver,
@@ -91,6 +91,9 @@ func (s *joinReOrderSolver) optimizeRecursive(ctx sessionctx.Context, p LogicalP
 				baseSingleGroupJoinOrderSolver: baseGroupSolver,
 			}
 			dpSolver.newJoin = dpSolver.newJoinWithEdges
+			// 这里传入的已经是等于式了，不等于的呢？
+			// 原来otherConds放到了baseSingleGroupJoinOrderSolver里面
+			// 问题来了，为啥greedy的eqEdges可以放里面，dp只能放到参数里，会不会是递归实现dp？
 			p, err = dpSolver.solve(curJoinGroup, expression.ScalarFuncs2Exprs(eqEdges))
 		}
 		if err != nil {
