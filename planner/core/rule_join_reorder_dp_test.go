@@ -192,7 +192,7 @@ func (s *testJoinReorderDPSuite) TestDPReorderTPCHQ5(c *C) {
 		baseSingleGroupJoinOrderSolver: &baseSingleGroupJoinOrderSolver{
 			ctx: s.ctx,
 		},
-		newJoin: s.newMockJoin,
+		newJoin: s.newMockJoin, // 用的是mockjoin，它的统计信息是写死在执行计划里面的
 	}
 	result, err := solver.solve(joinGroups, eqConds)
 	c.Assert(err, IsNil)
