@@ -47,10 +47,21 @@ func (s *joinReorderDPSolver) solve(joinGroup []LogicalPlan, eqConds []expressio
 
 	// Note that the join tree may be disconnected. i.e. You need to consider the case `select * from t, t1, t2`.
 
-	if len(joinGroup) == 1 {
-		// 单个节点，对应的是f[0x001]这种情况
-
+	dpMatrix := make(map[uint]*jrNode)
+	for i, node := range joinGroup {
+		_, err := node.recursiveDeriveStats()
+		if err != nil {
+			return nil, err
+		}
+		// 这里是基础节点
+		node := &jrNode{
+			p:       node,
+			cumCost: s.baseNodeCumCost(node),
+		}
+		s.curJoinGroup = append(s.curJoinGroup, node)
+		dpMatrix[uint(1<<i)] = node
 	}
+	// todo 填充dpMatrix
 
 	return nil, errors.Errorf("unimplemented")
 }
